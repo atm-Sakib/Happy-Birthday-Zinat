@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Happy Birthday Hector - Mansion Edition</title>
+    <style>
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            overflow: hidden; background-color: #050505; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: none; 
+        }
+        #webgl-container { width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 1; }
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 10, 20, 0.85); display: none;
+            justify-content: center; align-items: center;
+            z-index: 1000; opacity: 0; transition: opacity 0.4s ease;
+            backdrop-filter: blur(5px);
+        }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        .letter {
+            margin: 40px; width: 420px; max-width: 60%;
+            text-align: center;
+            position: relative;
+        }
+        .letter img {
+            width: 100%;
+            height: auto;
+        }
+        .photo-window {
+            background: #fff; padding: 15px; border-radius: 8px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.8); position: relative;
+            max-width: 85vw; max-height: 85vh;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .photo-window img { max-width: 100%; max-height: 75vh; object-fit: contain; border-radius: 4px; }
+        .close-btn { position: absolute; top: 12px; right: 18px; font-size: 28px; cursor: pointer; color: #888; font-weight: bold; z-index: 10; }
+        .photo-window .close-btn { top: -15px; right: -15px; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        #instructions {
+            position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%);
+            pointer-events: none;
+            text-align: center;
+            padding: 10px 22px; 
+            border-radius: 25px;
+            z-index: 10;
+        }
+        #instructions img {
+            height: 90px;
+            width: 180px;
+        }
+        
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="webgl-container"></div>
+    <div id="instructions"><img src="instr.png" alt=""></div>
+
+    <div id="letter-modal" class="modal-overlay">
+        <div class="letter">
+            <span class="close-btn" onclick="closeModal('letter-modal')">&times;</span>
+            <img src="letter.jpg" alt="">
+        </div>
+    </div>
+
+    <div id="photo-modal" class="modal-overlay">
+        <div class="photo-window">
+            <span class="close-btn" onclick="closeModal('photo-modal')">&times;</span>
+            <img id="enlarged-photo" src="" alt="Enlarged Memory">
+        </div>
+    </div>
+
+    <script>
+        const giftUrl = "https://google.com";
+
+        const myTextures = {
+            wallBack: "wall.png", 
+            wallLeft: "wall.png", 
+            wallRight: "wall.png",
+            floor: "floor.jpg", 
+            ceiling: "ceiling.jpg", 
+            banner: "banner.png",
+            lightSwitch: "switch.png", 
+            tableTop: "table-top.png", 
+            tableSide: null,
+            tableLeg: "table-bottom.jpg", 
+            cakeBottomSide: "cake-side.png",
+            cakeBottomTop: "cake-top.png", 
+            cakeTopSide: "cake-side.png",
+            cakeTopTop: "cake-top.png", 
+            candleBody: "candle.jpeg", 
+            envelope: "envelope.jpg", 
+            giftBox: "wrapper.jpeg", 
+            wishButton: "wish.png",
+            photo1: "photo1.jpg", photo2: "photo2.jpg", photo3: "photo3.jpg", photo4: "photo4.jpg"
+        };
+
+        const textureLoader = new THREE.TextureLoader();
+
+        function createMaterial(url, defaultColorHex, options = {}) {
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: defaultColorHex, 
+                roughness: 0.6, 
+                metalness: 0.1, 
+                ...options 
+            });
+
+            if (url) {
+                textureLoader.load(
+                    url, 
+                    (tex) => { 
+                        mat.map = tex; 
+                        mat.needsUpdate = true; 
+                    },
+                    undefined,
+                    () => { 
+                        console.warn("Texture not found, using fallback color for:", url); 
+                    }
+                );
+            }
+            return mat;
+        }
+
+        function createTextCanvasTexture(label, colorHex) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 400; canvas.height = 500;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = colorHex; ctx.fillRect(0, 0, 400, 500);
+            ctx.fillStyle = 'white'; ctx.font = 'bold 28px sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(label, 200, 250);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        
+
+        // SCENE & CAMERA
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a050d);
+        scene.fog = new THREE.FogExp2(0x0a050d, 0.005);
+
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 22, 44); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.3; 
+        document.getElementById('webgl-container').appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.enablePan = false;
+        controls.minDistance = 12; controls.maxDistance = 60;
+        controls.target.set(0, 12, -2); 
+        controls.maxPolarAngle = Math.PI / 2;
+
+        // LIGHTING
+        const ambientLight = new THREE.AmbientLight(0xffe6ed, 0.6); 
+        scene.add(ambientLight);
+
+        const candleLight = new THREE.PointLight(0xffaa44, 3.5, 35);
+        candleLight.position.set(0, 18, -2); 
+        candleLight.castShadow = true;
+        scene.add(candleLight);
+
+        const mainLight = new THREE.PointLight(0xfff0dd, 0, 120); 
+        mainLight.position.set(0, 38, 5);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 1024;
+        mainLight.shadow.mapSize.height = 1024;
+        scene.add(mainLight);
+
+        const sconceLightLeft = new THREE.PointLight(0xffaa55, 0, 30);
+        sconceLightLeft.position.set(-35, 36, -55);
+        scene.add(sconceLightLeft);
+
+        const sconceLightRight = new THREE.PointLight(0xffaa55, 0, 30);
+        sconceLightRight.position.set(35, 36, -55);
+        scene.add(sconceLightRight);
+
+        // ROOM SURFACES
+        const roomGeo = new THREE.BoxGeometry(120, 70, 120);
+        const roomMaterials = [
+            createMaterial(myTextures.wallRight, 0x3d2b45, { side: THREE.BackSide }), 
+            createMaterial(myTextures.wallLeft, 0x3d2b45, { side: THREE.BackSide }),  
+            createMaterial(myTextures.ceiling, 0x22162b, { side: THREE.BackSide }),   
+            createMaterial(myTextures.floor, 0x4a322b, { side: THREE.BackSide }),     
+            new THREE.MeshBasicMaterial({ side: THREE.BackSide, visible: false }),   
+            createMaterial(myTextures.wallBack, 0x3d2b45, { side: THREE.BackSide })   
+        ];
+        const room = new THREE.Mesh(roomGeo, roomMaterials);
+        room.position.y = 35;
+        room.receiveShadow = true;
+        scene.add(room);
+
+        const decorations = new THREE.Group();
+        decorations.visible = false; 
+        scene.add(decorations);
+
+        // BANNER SETUP USING AN IMAGE
+const bannerGeo = new THREE.PlaneGeometry(44, 20);
+
+// Material designed for punchy, vibrant colors
+const bannerMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0x222222,          // Keeps dark areas rich while glowing slightly
+    emissiveIntensity: 0.2,      // Makes image colors pop in room lighting
+    roughness: 0.2,
+    metalness: 0.1
+});
+
+// Load the banner image texture directly
+if (myTextures.banner) {
+    textureLoader.load(myTextures.banner, (tex) => {
+        tex.encoding = THREE.sRGBEncoding; // Preserves high color saturation
+        bannerMat.map = tex;
+        bannerMat.emissiveMap = tex;
+        bannerMat.needsUpdate = true;
+    });
+}
+
+const banner = new THREE.Mesh(bannerGeo, bannerMat);
+banner.position.set(0, 50, -59.4);
+decorations.add(banner);
+
+
+        // PHOTO FRAMES
+        function createFrame(x, y, w, h, texKey, label, colorHex) {
+            const frameGroup = new THREE.Group();
+            frameGroup.position.set(x, y, -59);
+            
+            const borderGeo = new THREE.BoxGeometry(w + 0.8, h + 0.8, 0.8);
+            const borderMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 });
+            const border = new THREE.Mesh(borderGeo, borderMat);
+            frameGroup.add(border);
+
+            const photoGeo = new THREE.PlaneGeometry(w, h);
+            const fallbackTex = createTextCanvasTexture(label, colorHex);
+            const photoMat = new THREE.MeshStandardMaterial({ map: fallbackTex });
+
+            if (myTextures[texKey]) {
+                textureLoader.load(myTextures[texKey], (tex) => {
+                    photoMat.map = tex;
+                    photoMat.needsUpdate = true;
+                });
+            }
+
+            const photo = new THREE.Mesh(photoGeo, photoMat);
+            photo.position.z = 0.5; 
+            photo.name = "photoFrame";
+            photo.userData = { url: myTextures[texKey] || fallbackTex.image.toDataURL() };
+            
+            frameGroup.add(photo);
+            decorations.add(frameGroup);
+            return photo;
+        }
+
+        const p1 = createFrame(-26, 26, 7, 9, 'photo1', 'Memory 1', '#1e90ff'); 
+        const p2 = createFrame(-10, 32, 6, 8, 'photo2', 'Memory 2', '#2ed573');  
+        const p3 = createFrame(10, 30, 6, 6, 'photo3', 'Memory 3', '#ffa502');   
+        const p4 = createFrame(26, 26, 7, 9, 'photo4', 'Memory 4', '#ff6b81');  
+
+        // BALLOONS
+        function createBalloon(x, y, z, colorHex) {
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+
+            const balloonGeo = new THREE.SphereGeometry(2.8, 32, 32);
+            balloonGeo.scale(1, 1.35, 0.9);
+            const balloonMat = new THREE.MeshStandardMaterial({ 
+                color: colorHex, roughness: 0.2, metalness: 0.1, 
+                clearcoat: 0.8, clearcoatRoughness: 0.1 
+            });
+            const mesh = new THREE.Mesh(balloonGeo, balloonMat);
+            mesh.castShadow = true;
+            group.add(mesh);
+
+            const knotGeo = new THREE.ConeGeometry(0.4, 0.5, 8);
+            const knotMat = new THREE.MeshStandardMaterial({ color: colorHex });
+            const knot = new THREE.Mesh(knotGeo, knotMat);
+            knot.position.y = -3.8;
+            knot.rotation.x = Math.PI;
+            group.add(knot);
+
+            const points = [];
+            let currY = -3.9;
+            for(let i=0; i<8; i++) {
+                points.push(new THREE.Vector3(Math.sin(i*0.8)*0.3, currY, Math.cos(i*0.8)*0.3));
+                currY -= 1.2;
+            }
+            const stringGeo = new THREE.BufferGeometry().setFromPoints(points);
+            const stringMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
+            group.add(new THREE.Line(stringGeo, stringMat));
+
+            decorations.add(group);
+            return group;
+        }
+
+        const balloons = [
+            createBalloon(-48, 36, -48, 0xff7eb3), createBalloon(-42, 42, -50, 0xff758c),
+            createBalloon(48, 36, -48, 0x74b9ff), createBalloon(42, 42, -50, 0xa29bfe),
+            createBalloon(-50, 28, 10, 0xfdcb6e), createBalloon(50, 28, 10, 0xe84393),
+            createBalloon(-42, 20, -15, 0xff7eb3), createBalloon(42, 20, -15, 0x55efc4)
+        ];
+
+        // LIGHT SWITCH WITH DARK-ROOM GLOW & WALL ILLUMINATION
+const switchGeo = new THREE.BoxGeometry(2.5, 4.5, 0.8);
+
+// 1. Emissive material so the switch object itself glows in pitch dark
+const switchMat = createMaterial(myTextures.lightSwitch, 0xffd700, {
+    emissive: 0xfff4d5,         // Warm golden glow color
+    emissiveIntensity: 0.8,     // Brightness of the glow in the dark
+    roughness: 0.2,
+    metalness: 0.5
+});
+
+const lightSwitch = new THREE.Mesh(switchGeo, switchMat);
+lightSwitch.position.set(0, 35, -59.2); 
+lightSwitch.name = "lightSwitch";
+scene.add(lightSwitch);
+
+// 2. Add a point light so it casts real light onto the wall behind it
+const switchGlowLight = new THREE.PointLight(0xffaa00, 1.5, 12);
+switchGlowLight.position.set(0, 35, -57.5); // Positioned slightly in front of the switch
+scene.add(switchGlowLight);
+
+
+
+
+        // MANSION WALL LIGHTS
+        function createSconce(x, y, z) {
+            const sconce = new THREE.Group();
+            sconce.position.set(x, y, z);
+
+            const rodMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.9, roughness: 0.2 });
+
+            const wallPlate = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.4, 16), rodMat);
+            wallPlate.rotation.x = Math.PI / 2;
+            sconce.add(wallPlate);
+
+            const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 4, 16), rodMat);
+            arm.position.set(0, -1, 1.8);
+            arm.rotation.x = Math.PI / 4;
+            sconce.add(arm);
+
+            const lanternTop = new THREE.Mesh(new THREE.ConeGeometry(1.8, 1.2, 4), rodMat);
+            lanternTop.position.set(0, -2.5, 3.2);
+            sconce.add(lanternTop);
+
+            const glassMat = new THREE.MeshStandardMaterial({ 
+                color: 0xffe0a3, 
+                emissive: 0xffb74d, 
+                emissiveIntensity: 1.0,
+                transparent: true, 
+                opacity: 0.95 
+            });
+            const glass = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 0.8, 2.5, 4), glassMat);
+            glass.position.set(0, -4.2, 3.2);
+            sconce.add(glass);
+
+            decorations.add(sconce);
+        }
+
+        createSconce(-35, 40, -59.2);
+        createSconce(35, 40, -59.2);
+
+        // TABLE & DECORATIONS
+        const tableGroup = new THREE.Group();
+        tableGroup.position.set(0, 0, -2); 
+        scene.add(tableGroup);
+
+        const tableTopGeo = new THREE.CylinderGeometry(15, 15, 1, 32);
+        const tableTopMaterials = [
+            createMaterial(myTextures.tableSide, 0x3d2314),
+            createMaterial(myTextures.tableTop, 0x52321c),
+            new THREE.MeshStandardMaterial({ color: 0x111111 })
+        ];
+        const tableTop = new THREE.Mesh(tableTopGeo, tableTopMaterials);
+        tableTop.position.y = 12; tableTop.receiveShadow = true; tableTop.castShadow = true;
+        tableGroup.add(tableTop);
+        
+        const legGeo = new THREE.CylinderGeometry(1.5, 3, 12, 16);
+        const legMat = createMaterial(myTextures.tableLeg, 0x2b170c);
+        const leg = new THREE.Mesh(legGeo, legMat);
+        leg.position.y = 6; leg.castShadow = true;
+        tableGroup.add(leg);
+
+        // CAKE (Center Origin)
+        const cakeGroup = new THREE.Group();
+        cakeGroup.position.set(0, 12.5, 0); 
+        tableGroup.add(cakeGroup);
+        
+        const bottomGeo = new THREE.CylinderGeometry(5, 5, 3, 32);
+        const bottomMaterials = [
+            createMaterial(myTextures.cakeBottomSide, 0xffa3b1),
+            createMaterial(myTextures.cakeBottomTop, 0xffe3e8),
+            new THREE.MeshStandardMaterial({ color: 0x222222 })
+        ];
+        const bottomLayer = new THREE.Mesh(bottomGeo, bottomMaterials);
+        bottomLayer.position.y = 1.5; bottomLayer.castShadow = true;
+        cakeGroup.add(bottomLayer);
+
+        const trimMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+        const bottomRim = new THREE.Mesh(new THREE.TorusGeometry(5.05, 0.25, 16, 32), trimMat);
+        bottomRim.position.y = 3.0; bottomRim.rotation.x = Math.PI / 2;
+        cakeGroup.add(bottomRim);
+
+        const topGeo = new THREE.CylinderGeometry(3.5, 3.5, 2.5, 32);
+        const topMaterials = [
+            createMaterial(myTextures.cakeTopSide, 0xff758c),
+            createMaterial(myTextures.cakeTopTop, 0xffffff),
+            new THREE.MeshStandardMaterial({ color: 0x222222 })
+        ];
+        const topLayer = new THREE.Mesh(topGeo, topMaterials);
+        topLayer.position.y = 4.25; topLayer.castShadow = true;
+        cakeGroup.add(topLayer);
+
+        const topRim = new THREE.Mesh(new THREE.TorusGeometry(3.55, 0.2, 16, 32), trimMat);
+        topRim.position.y = 5.5; topRim.rotation.x = Math.PI / 2;
+        cakeGroup.add(topRim);
+        
+        const candleGeo = new THREE.CylinderGeometry(0.2, 0.2, 2.5);
+        const candleMat = createMaterial(myTextures.candleBody, 0xfff0f5);
+        const candle = new THREE.Mesh(candleGeo, candleMat);
+        candle.position.set(0, 6.75, 0); 
+        cakeGroup.add(candle);
+
+        const flameGeo = new THREE.SphereGeometry(0.35, 16, 16);
+        const flameMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+        const flame = new THREE.Mesh(flameGeo, flameMat);
+        flame.position.set(0, 8.2, 0);
+        cakeGroup.add(flame);
+
+        // TABLE ITEMS (Well separated to prevent clipping)
+        const envelopeGeo = new THREE.BoxGeometry(4, 0.3, 3);
+        const envelopeMat = createMaterial(myTextures.envelope, 0xfffcf0);
+        const envelope = new THREE.Mesh(envelopeGeo, envelopeMat);
+        envelope.position.set(-10, 12.65, 4); 
+        envelope.rotation.y = Math.PI / 4;
+        envelope.name = "envelope"; envelope.castShadow = true;
+        tableGroup.add(envelope);
+
+        const giftGeo = new THREE.BoxGeometry(4.2, 4.2, 4.2);
+        const giftMat = createMaterial(myTextures.giftBox, 0xe84393);
+        const gift = new THREE.Mesh(giftGeo, giftMat);
+        gift.position.set(10, 14.6, 3); 
+        gift.rotation.y = -Math.PI / 5;
+        gift.name = "giftBox"; gift.castShadow = true;
+        
+        const ribbon1Geo = new THREE.BoxGeometry(4.4, 4.3, 0.8);
+        const ribbon2Geo = new THREE.BoxGeometry(0.8, 4.3, 4.4);
+        const ribbonMat = new THREE.MeshStandardMaterial({ color: 0xfdcb6e, metalness: 0.5, roughness: 0.2 });
+        gift.add(new THREE.Mesh(ribbon1Geo, ribbonMat));
+        gift.add(new THREE.Mesh(ribbon2Geo, ribbonMat));
+        tableGroup.add(gift);
+
+        // CAKE KNIFE
+        const knifeGroup = new THREE.Group();
+        knifeGroup.position.set(-9, 12.6, -7); 
+        knifeGroup.rotation.y = -Math.PI / 4;
+
+        const bladeGeo = new THREE.BoxGeometry(4.5, 0.05, 0.6);
+        const bladeMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.9, roughness: 0.1 });
+        const blade = new THREE.Mesh(bladeGeo, bladeMat);
+        blade.position.x = 2;
+        knifeGroup.add(blade);
+
+        const handleGeo = new THREE.CylinderGeometry(0.25, 0.3, 2, 16);
+        const handleMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.8, roughness: 0.3 });
+        const handle = new THREE.Mesh(handleGeo, handleMat);
+        handle.rotation.z = Math.PI / 2;
+        handle.position.x = -1;
+        knifeGroup.add(handle);
+        tableGroup.add(knifeGroup);
+
+        // WISH BUTTON
+        const btnGeo = new THREE.BoxGeometry(5.5, 0.8, 3);
+        const btnMat = createMaterial(myTextures.wishButton, 0xff4757);
+        const wishBtn = new THREE.Mesh(btnGeo, btnMat);
+        wishBtn.position.set(0, 12.9, 10); 
+        wishBtn.name = "wishBtn"; wishBtn.castShadow = true;
+        tableGroup.add(wishBtn);
+
+        // TOYS
+        function createToyBlocks(x, z) {
+            const group = new THREE.Group();
+            group.position.set(x, 0, z);
+            const colors = [0xff4757, 0x2ed573, 0x1e90ff, 0xffa502];
+            for(let i = 0; i < 4; i++) {
+                const b = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.2, 1.2, 1.2),
+                    new THREE.MeshStandardMaterial({ color: colors[i] })
+                );
+                b.position.set((Math.random()-0.5)*2, 0.6 + i*0.2, (Math.random()-0.5)*2);
+                b.rotation.y = Math.random();
+                b.castShadow = true;
+                group.add(b);
+            }
+            decorations.add(group);
+        }
+
+        function createToyCar(x, z, angle) {
+            const car = new THREE.Group();
+            car.position.set(x, 0.6, z);
+            car.rotation.y = angle;
+
+            const body = new THREE.Mesh(
+                new THREE.BoxGeometry(3, 1, 1.6),
+                new THREE.MeshStandardMaterial({ color: 0xff3838 })
+            );
+            body.castShadow = true;
+            car.add(body);
+
+            const cabin = new THREE.Mesh(
+                new THREE.BoxGeometry(1.5, 0.8, 1.4),
+                new THREE.MeshStandardMaterial({ color: 0xffffff })
+            );
+            cabin.position.set(-0.2, 0.8, 0);
+            cabin.castShadow = true;
+            car.add(cabin);
+
+            decorations.add(car);
+        }
+
+        function createTeddyBear(x, z, angle) {
+            const bear = new THREE.Group();
+            bear.position.set(x, 1.2, z);
+            bear.rotation.y = angle;
+
+            const fur = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 });
+            const body = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), fur);
+            body.castShadow = true;
+            bear.add(body);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 16), fur);
+            head.position.y = 1.6; head.castShadow = true;
+            bear.add(head);
+
+            const ear1 = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), fur);
+            ear1.position.set(-0.6, 2.3, 0);
+            bear.add(ear1);
+
+            const ear2 = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), fur);
+            ear2.position.set(0.6, 2.3, 0);
+            bear.add(ear2);
+
+            decorations.add(bear);
+        }
+
+        function createRubberDuck(x, z, angle) {
+            const duck = new THREE.Group();
+            duck.position.set(x, 0.5, z);
+            duck.rotation.y = angle;
+
+            const yellow = new THREE.MeshStandardMaterial({ color: 0xffd700 });
+            const orange = new THREE.MeshStandardMaterial({ color: 0xffa500 });
+
+            const body = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16), yellow);
+            body.scale.set(1, 0.8, 1.2);
+            body.castShadow = true;
+            duck.add(body);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), yellow);
+            head.position.set(0, 0.7, 0.4);
+            duck.add(head);
+
+            const beak = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.4, 8), orange);
+            beak.rotation.x = Math.PI / 2;
+            beak.position.set(0, 0.6, 0.9);
+            duck.add(beak);
+
+            decorations.add(duck);
+        }
+
+        createToyBlocks(-18, 10);
+        createToyBlocks(22, 15);
+        createToyCar(-25, -12, Math.PI / 4);
+        createToyCar(18, -8, -Math.PI / 3);
+        createTeddyBear(-15, -5, Math.PI / 6);
+        createRubberDuck(12, 8, -Math.PI / 4);
+
+        // FAIRY LIGHTS WITH COLORED GLOW
+        const fairyLightGroup = new THREE.Group();
+        const stringPoints = [];
+        const lightColors = [0xff4757, 0x2ed573, 0x1e90ff, 0xffa502, 0xe84393, 0x00d2d3];
+
+        for(let x = -50; x <= 50; x += 3.5) {
+            const y = 42 + Math.sin(x * 0.2) * 2;
+            stringPoints.push(new THREE.Vector3(x, y, -59.2));
+            
+            const colorHex = lightColors[Math.abs(Math.floor(x)) % lightColors.length];
+            const bulbGeo = new THREE.SphereGeometry(0.5, 16, 16);
+            
+            const bulbMat = new THREE.MeshStandardMaterial({ 
+                color: colorHex,
+                emissive: colorHex,
+                emissiveIntensity: 1.5,
+                roughness: 0.1
+            });
+            const bulb = new THREE.Mesh(bulbGeo, bulbMat);
+            bulb.position.set(x, y, -59.1);
+            fairyLightGroup.add(bulb);
+        }
+        const stringLineGeo = new THREE.BufferGeometry().setFromPoints(stringPoints);
+        fairyLightGroup.add(new THREE.Line(stringLineGeo, new THREE.LineBasicMaterial({ color: 0xaaaaaa })));
+        decorations.add(fairyLightGroup);
+
+        // CONFETTI SYSTEM
+        const confettiCount = 500;
+        const confettiMeshGroup = new THREE.Group();
+        const confettiPlanes = [];
+        const confettiPlaneGeo = new THREE.PlaneGeometry(0.5, 0.5);
+
+        for(let i = 0; i < confettiCount; i++) {
+            const cMat = new THREE.MeshBasicMaterial({ 
+                color: new THREE.Color().setHSL(Math.random(), 0.8, 0.6),
+                side: THREE.DoubleSide
+            });
+            const p = new THREE.Mesh(confettiPlaneGeo, cMat);
+            p.position.set(
+                (Math.random() - 0.5) * 80,
+                20 + Math.random() * 40,
+                (Math.random() - 0.5) * 80
+            );
+            confettiPlanes.push(p);
+            confettiMeshGroup.add(p);
+        }
+        confettiMeshGroup.visible = false; 
+        scene.add(confettiMeshGroup);
+
+        // INTERACTIONS
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let lightsOn = false;
+        let isBlownOut = false;
+
+        const interactables = [lightSwitch, envelope, gift, wishBtn, p1, p2, p3, p4];
+
+        window.addEventListener('pointerdown', (e) => {
+            if(document.getElementById('letter-modal').classList.contains('active') || 
+               document.getElementById('photo-modal').classList.contains('active')) {
+                return;
+            }
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactables);
+            
+            if (intersects.length > 0) {
+                const obj = intersects[0].object;
+                
+                if (obj.name === "lightSwitch" && !lightsOn) {
+                    lightsOn = true;
+                    scene.background = new THREE.Color(0x23182b);
+                    scene.fog.color = new THREE.Color(0x23182b);
+                    ambientLight.intensity = 0.8;
+                    mainLight.intensity = 1.4;
+                    sconceLightLeft.intensity = 2.5;
+                    sconceLightRight.intensity = 2.5;
+                    obj.visible = false; 
+                    decorations.visible = true;
+                    confettiMeshGroup.visible = true; 
+                    document.querySelector('#instructions img').src = "instr2.png";
+                }
+                else if (obj.name === "envelope" && lightsOn) {
+                    document.getElementById('letter-modal').classList.add('active');
+                }
+                else if (obj.name === "giftBox" && lightsOn) {
+                    window.open(giftUrl, '_blank');
+                }
+                else if (obj.name === "photoFrame" && lightsOn) {
+                    const modal = document.getElementById('photo-modal');
+                    const img = document.getElementById('enlarged-photo');
+                    img.src = obj.userData.url; 
+                    modal.classList.add('active');
+                }
+                else if (obj.name === "wishBtn" && lightsOn && !isBlownOut) {
+                    isBlownOut = true;
+                    cakeGroup.remove(flame); 
+                    candleLight.intensity = 0; 
+                    wishBtn.visible = false;
+                }
+            }
+        });
+
+        window.closeModal = function(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        document.querySelectorAll('.modal-overlay').forEach(modal => {
+            modal.addEventListener('pointerdown', (e) => {
+                if (e.target === modal) modal.classList.remove('active');
+            });
+        });
+
+        // ANIMATION LOOP
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            if (!isBlownOut) {
+                flame.scale.set(
+                    1 + Math.sin(time * 18) * 0.15,
+                    1 + Math.sin(time * 12) * 0.15,
+                    1 + Math.sin(time * 18) * 0.15
+                );
+                candleLight.intensity = 2.5 + Math.sin(time * 15) * 0.3;
+            }
+
+            if (lightsOn) {
+                for(let i = 0; i < confettiCount; i++) {
+                    const p = confettiPlanes[i];
+                    p.position.y -= 0.15;
+                    p.position.x += Math.sin(time + i) * 0.03;
+                    p.rotation.x += 0.03;
+                    p.rotation.y += 0.02;
+
+                    if (p.position.y < 0) {
+                        p.position.y = 50;
+                    }
+                }
+
+                balloons.forEach((b, index) => {
+                    b.position.y += Math.sin(time * 1.5 + index) * 0.02;
+                    b.rotation.z = Math.sin(time + index) * 0.05;
+                });
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
+
