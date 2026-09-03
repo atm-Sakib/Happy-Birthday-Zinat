@@ -1,0 +1,1930 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>  
+    <meta charset="UTF-8"><meta
+name="viewport"
+content="width=device-width, initial-scale=1.0, user-scalable=no"
+
+«»
+
+  <title>Surprise</title>
+  
+  <style>
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body 
+    {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #050505;
+      font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    }
+
+    #canvas-container 
+    {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    canvas 
+    {
+      display: block;
+    }
+
+    /* info panel */
+
+    #info-panel 
+    {
+      position: fixed;
+      left: 50%;
+      bottom: 30px;
+      transform:
+        translateX(-50%)
+        translateY(10px);
+      padding: 12px 22px;
+      background:rgba(0, 0, 0, 0.78);
+      color: white;
+      border-radius: 20px;
+      font-size: 15px;
+      pointer-events: none;
+      opacity: 0;
+      transition:
+        opacity 0.25s ease,
+        transform 0.25s ease;
+      z-index: 20;
+      white-space: nowrap;
+    }
+
+    #info-panel.show 
+    {
+      opacity: 1;
+      transform:
+        translateX(-50%)
+        translateY(0);
+
+    }
+
+    #letter-overlay
+    {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(4px);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.25s ease;
+      z-index: 50;
+    }
+
+    #letter-overlay.open 
+    {
+      opacity: 1;
+      visibility: visible;
+    }
+
+
+    #letter-window
+    {
+      position: relative;
+      max-width: min(90vw, 800px);
+      max-height: 90vh;
+      animation: letterOpen 0.25s ease;
+
+    }
+
+    #letter-window img
+    {
+      display: block;
+      max-width: 100%;
+      max-height: 85vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 15px 50px
+        rgba(0, 0, 0, 0.5);
+    }
+
+
+    #close-letter {
+      position: absolute;
+      top: -14px;
+      right: -14px;
+      width: 38px;
+      height: 38px;
+      border: none;
+      border-radius: 50%;
+      background: white;
+      color: #111;
+      font-size: 22px;
+      line-height: 38px;
+      text-align: center;
+      cursor: pointer;
+      z-index: 2;
+    }
+
+    @keyframes letterOpen{
+
+      from {
+        transform: scale(0.94);
+        opacity: 0;
+      }
+
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+
+    #loading
+    {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #050505;
+      z-index: 100;
+      transition: opacity 0.5s ease;
+    }
+
+    #loading.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /*
+      Loading GIF.
+
+      Change the width here if you want
+      the sticker larger/smaller.
+    */
+
+    #loading-gif 
+    {
+      width: 130px;
+      height: 130px;
+      object-fit: contain;
+    }
+
+  </style> 
+  <script type="importmap">
+
+  {
+    "imports": {
+
+      "three":
+        "https://unpkg.com/three@0.160.0/build/three.module.js",
+
+      "three/addons/":
+        "https://unpkg.com/three@0.160.0/examples/jsm/"
+
+    }
+  }
+
+  </script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="loading">
+    <img id="loading-gif" src="loading.gif" alt="Loading">
+  </div>
+  <div id="info-panel"></div>
+  <div id="letter-overlay">
+    <div id="letter-window">
+      <button id="close-letter">×</button>
+      <img id="letter-image" src="letter.jpg" alt="Birthday letter">
+    </div>
+  </div>
+  <audio id="birthday-music" preload="auto"></audio>
+
+
+
+  <script type="module">
+
+    import * as THREE from 'three';
+
+    import {
+      GLTFLoader
+    } from
+      'three/addons/loaders/GLTFLoader.js';
+
+    import {
+      OrbitControls
+    } from
+      'three/addons/controls/OrbitControls.js';
+
+
+   // FILES
+
+    const ROOM_FILE =
+      "birthday room.glb";
+
+    const MUSIC_FILE =
+      "happy birthday.mp3";
+
+    const LETTER_IMAGE =
+      "letter.jpg";
+
+    const LOADING_GIF =
+      "loading.gif";
+
+    // music website redirect
+
+    const GIFT_WEBSITE =
+      "musicplayer.html";
+
+
+    // CAMERA SETTINGS
+
+    const CAMERA_SETTINGS = {
+
+      FOV: 60, // feild of view
+
+      position: new THREE.Vector3(
+        0,  // X
+        6,  // Y
+        10.5   // Z
+      ),
+
+      target: new THREE.Vector3(
+        0,  // X
+        6,  // Y
+        10   // Z
+      ),
+
+      horizontalLimit:  Math.PI * 0.3,
+
+      minPolarAngle:  Math.PI * 0.20,
+
+      maxPolarAngle:  Math.PI * 0.80
+
+    };
+
+    const ROOM_ROTATION_Y = -90;
+
+    const ROOM_ROTATION_X = 0;
+
+    const ROOM_ROTATION_Z = 0;
+
+
+
+    const CONFETTI_SETTINGS = {
+
+      COUNT: 2500,
+
+      AREA_WIDTH: 30,
+      AREA_HEIGHT: 30,
+      AREA_DEPTH: 30,
+
+      CENTER_X: 0,
+      CENTER_Y: 6,
+      CENTER_Z: 0,
+ 
+      FALL_SPEED_MIN:  0.020,
+      FALL_SPEED_MAX:  0.050,
+
+      SIZE: 0.1,
+
+      DURATION: 900000
+    };
+
+    // object naming (diff meshes are named here)
+
+    const INTERACTIVE_NAMES = {
+      
+      cake: ["cake"],
+      envelope: [
+        "envelope",
+        "letter"
+      ],
+      gift: [
+        "giftbox",
+        "gift box",
+        "gift_box",
+        "gift"
+      ]
+    };
+
+
+    // SCENE
+
+    const scene =
+      new THREE.Scene();
+
+
+    scene.background =
+      new THREE.Color(
+        0xffffff
+      );
+
+
+    // =========================================================
+    // CAMERA
+    // =========================================================
+
+
+    const camera =
+      new THREE.PerspectiveCamera(
+
+        CAMERA_SETTINGS.FOV,
+
+        window.innerWidth /
+        window.innerHeight,
+
+        0.05,
+
+        1000
+
+      );
+
+
+    camera.position.copy(
+
+      CAMERA_SETTINGS.position
+
+    );
+
+
+    // =========================================================
+    // RENDERER
+    // =========================================================
+
+
+    const renderer =
+      new THREE.WebGLRenderer({
+
+        antialias: true,
+
+        alpha: false
+
+      });
+
+
+    renderer.setSize(
+
+      window.innerWidth,
+
+      window.innerHeight
+
+    );
+
+
+    renderer.setPixelRatio(
+
+      Math.min(
+
+        window.devicePixelRatio,
+
+        1.5
+
+      )
+
+    );
+
+
+    renderer.outputColorSpace =
+      THREE.SRGBColorSpace;
+
+
+    /*
+      No real-time shadows.
+    */
+
+    renderer.shadowMap.enabled =
+      false;
+
+
+    renderer.toneMapping =
+      THREE.NoToneMapping;
+
+
+    renderer.toneMappingExposure =
+      .002;
+
+
+    document
+      .getElementById(
+        "canvas-container"
+      )
+      .appendChild(
+        renderer.domElement
+      );
+
+
+    // =========================================================
+    // LIGHTING
+    // =========================================================
+    //
+    // KEEPING YOUR LIGHTING EXACTLY AS REQUESTED.
+    //
+    // ONLY AMBIENT LIGHT.
+    //
+    // =========================================================
+
+
+    const ambientLight =
+      new THREE.AmbientLight(
+
+        0xffffff,
+
+        1
+
+      );
+
+
+    scene.add(
+      ambientLight
+    );
+
+    
+
+    // =========================================================
+    // CONTROLS
+    // =========================================================
+
+
+    const controls =
+      new OrbitControls(
+
+        camera,
+
+        renderer.domElement
+
+      );
+
+
+    controls.target.copy(
+
+      CAMERA_SETTINGS.target
+
+    );
+
+
+    controls.enableDamping =
+      true;
+
+
+    controls.dampingFactor =
+      0.07;
+
+
+    controls.enableZoom =
+      false;
+
+
+    controls.enablePan =
+      false;
+
+
+    controls.minAzimuthAngle =
+      -CAMERA_SETTINGS.horizontalLimit;
+
+
+    controls.maxAzimuthAngle =
+      CAMERA_SETTINGS.horizontalLimit;
+
+
+    controls.minPolarAngle =
+      CAMERA_SETTINGS.minPolarAngle;
+
+
+    controls.maxPolarAngle =
+      CAMERA_SETTINGS.maxPolarAngle;
+
+
+    controls.update();
+
+
+    // =========================================================
+    // ROOM
+    // =========================================================
+
+
+    let room = null;
+
+
+    // =========================================================
+    // LOAD GLB
+    // =========================================================
+
+
+    const loader =
+      new GLTFLoader();
+
+
+    loader.load(
+
+      ROOM_FILE,
+
+
+      (gltf) => {
+
+
+        room =
+          gltf.scene;
+
+
+        /*
+          Apply room rotation.
+
+          This is independent from camera rotation.
+        */
+
+        room.rotation.x =
+          THREE.MathUtils.degToRad(
+            ROOM_ROTATION_X
+          );
+
+
+        room.rotation.y =
+          THREE.MathUtils.degToRad(
+            ROOM_ROTATION_Y
+          );
+
+
+        room.rotation.z =
+          THREE.MathUtils.degToRad(
+            ROOM_ROTATION_Z
+          );
+
+
+        room.traverse(
+
+          (child) => {
+
+
+            if (
+              !child.isMesh
+            ) {
+
+              return;
+
+            }
+
+
+            /*
+              No shadows.
+            */
+
+            child.castShadow =
+              false;
+
+            child.receiveShadow =
+              false;
+
+
+            /*
+              Print every mesh name.
+
+              Open the browser console to see
+              exactly what Blender exported.
+            */
+
+            console.log(
+
+              "GLB mesh:",
+
+              child.name
+
+            );
+
+          }
+
+        );
+
+
+        scene.add(
+          room
+        );
+
+
+        createConfetti();
+
+
+        document
+          .getElementById(
+            "loading"
+          )
+          .classList.add(
+            "hidden"
+          );
+
+      },
+
+
+      (xhr) => {
+
+
+        if (
+          xhr.total
+        ) {
+
+
+          const percent =
+            (
+              xhr.loaded /
+              xhr.total
+            ) * 100;
+
+
+          console.log(
+
+            "Loading:",
+
+            percent.toFixed(0) +
+            "%"
+
+          );
+
+        }
+
+      },
+
+
+      (error) => {
+
+
+        console.error(
+
+          "GLB loading error:",
+
+          error
+
+        );
+
+
+        document
+          .getElementById(
+            "loading"
+          )
+          .innerHTML =
+          "Could not load the room.";
+
+      }
+
+    );
+
+
+    // =========================================================
+    // OBJECT NAME NORMALIZATION
+    // =========================================================
+
+
+    function normalizeName(
+      name
+    ) {
+
+
+      return name
+
+        .toLowerCase()
+
+        .replace(
+          /[._\-]/g,
+          " "
+        )
+
+        .replace(
+          /\s+/g,
+          " "
+        )
+
+        .trim();
+
+    }
+
+
+    // =========================================================
+    // FIND INTERACTIVE OBJECT
+    // =========================================================
+
+
+    function findInteractiveType(
+      object
+    ) {
+
+
+      let current =
+        object;
+
+
+      while (
+        current
+      ) {
+
+
+        const name =
+          normalizeName(
+
+            current.name || ""
+
+          );
+
+
+        // --------------------------
+        // CAKE
+        // --------------------------
+
+        for (
+          const keyword
+          of INTERACTIVE_NAMES.cake
+        ) {
+
+
+          if (
+            name.includes(
+              keyword
+            )
+          ) {
+
+            return "cake";
+
+          }
+
+        }
+
+
+        // --------------------------
+        // ENVELOPE
+        // --------------------------
+
+        for (
+          const keyword
+          of INTERACTIVE_NAMES.envelope
+        ) {
+
+
+          if (
+            name.includes(
+              keyword
+            )
+          ) {
+
+            return "envelope";
+
+          }
+
+        }
+
+
+        // --------------------------
+        // GIFT
+        // --------------------------
+
+        for (
+          const keyword
+          of INTERACTIVE_NAMES.gift
+        ) {
+
+
+          if (
+            name.includes(
+              keyword
+            )
+          ) {
+
+            return "gift";
+
+          }
+
+        }
+
+
+        current =
+          current.parent;
+
+      }
+
+
+      return null;
+
+    }
+
+
+    // =========================================================
+    // RAYCASTING
+    // =========================================================
+
+
+    const raycaster =
+      new THREE.Raycaster();
+
+
+    const mouse =
+      new THREE.Vector2();
+
+
+    let pointerDownX = 0;
+
+    let pointerDownY = 0;
+
+    let pointerDownTime = 0;
+
+
+    renderer.domElement.addEventListener(
+
+      "pointerdown",
+
+      (event) => {
+
+
+        pointerDownX =
+          event.clientX;
+
+
+        pointerDownY =
+          event.clientY;
+
+
+        pointerDownTime =
+          performance.now();
+
+      }
+
+    );
+
+
+    renderer.domElement.addEventListener(
+
+      "pointerup",
+
+      (event) => {
+
+
+        const dx =
+          Math.abs(
+
+            event.clientX -
+            pointerDownX
+
+          );
+
+
+        const dy =
+          Math.abs(
+
+            event.clientY -
+            pointerDownY
+
+          );
+
+
+        const duration =
+          performance.now() -
+          pointerDownTime;
+
+
+        /*
+          Ignore camera movement.
+        */
+
+        if (
+
+          dx > 8 ||
+          dy > 8 ||
+          duration > 500
+
+        ) {
+
+          return;
+
+        }
+
+
+        mouse.x =
+          (
+            event.clientX /
+            window.innerWidth
+          ) * 2 - 1;
+
+
+        mouse.y =
+          -(
+            event.clientY /
+            window.innerHeight
+          ) * 2 + 1;
+
+
+        raycaster.setFromCamera(
+
+          mouse,
+
+          camera
+
+        );
+
+
+        if (
+          !room
+        ) {
+
+          return;
+
+        }
+
+
+        /*
+          Search the entire GLB.
+
+          This is much more reliable
+          with Blender-exported hierarchies.
+        */
+
+        const intersects =
+          raycaster.intersectObject(
+
+            room,
+
+            true
+
+          );
+
+
+        if (
+          intersects.length === 0
+        ) {
+
+          return;
+
+        }
+
+
+        const clicked =
+          intersects[0].object;
+
+
+        const type =
+          findInteractiveType(
+
+            clicked
+
+          );
+
+
+        console.log(
+
+          "Clicked:",
+          clicked.name,
+          "Type:",
+          type
+
+        );
+
+
+        if (
+          type === "cake"
+        ) {
+
+          cakeClicked();
+
+        }
+
+
+        else if (
+          type === "envelope"
+        ) {
+
+          envelopeClicked();
+
+        }
+
+
+        else if (
+          type === "gift"
+        ) {
+
+          giftClicked();
+
+        }
+
+      }
+
+    );
+
+
+    // =========================================================
+    // CAKE
+    // =========================================================
+
+
+    const birthdayMusic =
+      document.getElementById(
+        "birthday-music"
+      );
+
+
+    birthdayMusic.src =
+      MUSIC_FILE;
+
+
+    function cakeClicked() {
+
+
+      birthdayMusic.currentTime =
+        0;
+
+
+      birthdayMusic
+        .play()
+        .catch(
+
+          (error) => {
+
+            console.log(
+
+              "Audio could not play:",
+
+              error
+
+            );
+
+          }
+
+        );
+
+
+      showMessage(
+        "Happy Birthday!"
+      );
+
+
+      startConfetti();
+
+    }
+
+
+    // =========================================================
+    // LETTER
+    // =========================================================
+
+
+    const letterOverlay =
+      document.getElementById(
+        "letter-overlay"
+      );
+
+
+    const letterImage =
+      document.getElementById(
+        "letter-image"
+      );
+
+
+    letterImage.src =
+      LETTER_IMAGE;
+
+
+    function envelopeClicked() {
+
+
+      letterOverlay.classList.add(
+        "open"
+      );
+
+    }
+
+
+    document
+      .getElementById(
+        "close-letter"
+      )
+      .addEventListener(
+
+        "click",
+
+        () => {
+
+          letterOverlay.classList.remove(
+            "open"
+          );
+
+        }
+
+      );
+
+
+    letterOverlay.addEventListener(
+
+      "click",
+
+      (event) => {
+
+
+        if (
+          event.target ===
+          letterOverlay
+        ) {
+
+          letterOverlay.classList.remove(
+            "open"
+          );
+
+        }
+
+      }
+
+    );
+
+
+    window.addEventListener(
+
+      "keydown",
+
+      (event) => {
+
+
+        if (
+          event.key ===
+          "Escape"
+        ) {
+
+          letterOverlay.classList.remove(
+            "open"
+          );
+
+        }
+
+      }
+
+    );
+
+
+    // =========================================================
+    // GIFT
+    // =========================================================
+
+
+    function giftClicked() {
+
+
+      window.location.href =
+        GIFT_WEBSITE;
+
+    }
+
+
+    // =========================================================
+    // INFO MESSAGE
+    // =========================================================
+
+
+    let messageTimeout;
+
+
+    function showMessage(
+      message
+    ) {
+
+
+      const panel =
+        document.getElementById(
+          "info-panel"
+        );
+
+
+      panel.textContent =
+        message;
+
+
+      panel.classList.add(
+        "show"
+      );
+
+
+      clearTimeout(
+        messageTimeout
+      );
+
+
+      messageTimeout =
+        setTimeout(
+
+          () => {
+
+            panel.classList.remove(
+              "show"
+            );
+
+          },
+
+          2500
+
+        );
+
+    }
+
+
+    // =========================================================
+    // =========================================================
+    // 3D CONFETTI
+    // =========================================================
+    // =========================================================
+    //
+    // Actual 3D geometry.
+    //
+    // Uses InstancedMesh for performance.
+    //
+    // No lights.
+    // No shadows.
+    //
+    // =========================================================
+
+
+    let confettiMesh =
+      null;
+
+
+    let confettiPieces =
+      [];
+
+
+    let confettiActive =
+      false;
+
+
+    let confettiEndTime =
+      0;
+
+
+    function createConfetti() {
+
+
+      /*
+        Rectangular confetti piece.
+      */
+
+      const geometry =
+        new THREE.PlaneGeometry(
+
+          CONFETTI_SETTINGS.SIZE,
+
+          CONFETTI_SETTINGS.SIZE * 1.8
+
+        );
+
+
+      /*
+        MeshBasicMaterial is extremely cheap.
+
+        It doesn't need lights.
+      */
+
+      const material =
+        new THREE.MeshBasicMaterial({
+
+          color: 0xffffff,
+
+          side:
+            THREE.DoubleSide
+
+        });
+
+
+      confettiMesh =
+        new THREE.InstancedMesh(
+
+          geometry,
+
+          material,
+
+          CONFETTI_SETTINGS.COUNT
+
+        );
+
+
+      /*
+        No shadows.
+      */
+
+      confettiMesh.castShadow =
+        false;
+
+      confettiMesh.receiveShadow =
+        false;
+
+
+      confettiMesh.visible =
+        false;
+
+
+      scene.add(
+        confettiMesh
+      );
+
+
+      /*
+        Temporary object used to build
+        each instance transform.
+      */
+
+      const dummy =
+        new THREE.Object3D();
+
+
+      confettiMesh.userData.dummy =
+        dummy;
+
+
+      const colors = [
+
+        0xff4d6d,
+
+        0xffd166,
+
+        0x06d6a0,
+
+        0x4dabf7,
+
+        0xc77dff,
+
+        0xffffff,
+
+        0xff8fab,
+
+        0xff9f1c
+
+      ];
+
+
+      /*
+        Create individual physics data.
+      */
+
+      for (
+
+        let i = 0;
+
+        i <
+        CONFETTI_SETTINGS.COUNT;
+
+        i++
+
+      ) {
+
+
+        const color =
+          new THREE.Color(
+
+            colors[
+              Math.floor(
+
+                Math.random() *
+                colors.length
+
+              )
+            ]
+
+          );
+
+
+        confettiMesh.setColorAt(
+
+          i,
+
+          color
+
+        );
+
+
+        confettiPieces.push({
+
+          x: 0,
+
+          y: 0,
+
+          z: 0,
+
+
+          velocityX: 0,
+
+          velocityY: 0,
+
+          velocityZ: 0,
+
+
+          rotationX:
+            Math.random() *
+            Math.PI,
+
+          rotationY:
+            Math.random() *
+            Math.PI,
+
+          rotationZ:
+            Math.random() *
+            Math.PI,
+
+
+          rotationSpeedX:
+            -0.12 +
+            Math.random() *
+            0.24,
+
+
+          rotationSpeedY:
+            -0.12 +
+            Math.random() *
+            0.24,
+
+
+          rotationSpeedZ:
+            -0.12 +
+            Math.random() *
+            0.24
+
+        });
+
+      }
+
+
+      if (
+        confettiMesh.instanceColor
+      ) {
+
+        confettiMesh
+          .instanceColor
+          .needsUpdate = true;
+
+      }
+
+    }
+
+
+    // =========================================================
+    // START CONFETTI
+    // =========================================================
+
+
+    function startConfetti() {
+
+
+      if (
+        !confettiMesh
+      ) {
+
+        return;
+
+      }
+
+
+      /*
+        Reset all pieces.
+      */
+
+      for (
+
+        let i = 0;
+
+        i <
+        confettiPieces.length;
+
+        i++
+
+      ) {
+
+
+        const piece =
+          confettiPieces[i];
+
+
+        /*
+          Random position inside the
+          configured 3D volume.
+        */
+
+        piece.x =
+
+          CONFETTI_SETTINGS.CENTER_X
+
+          +
+
+          (
+            Math.random() - 0.5
+          )
+
+          *
+
+          CONFETTI_SETTINGS.AREA_WIDTH;
+
+
+        piece.y =
+
+          CONFETTI_SETTINGS.CENTER_Y
+
+          +
+
+          Math.random() *
+          CONFETTI_SETTINGS.AREA_HEIGHT;
+
+
+        piece.z =
+
+          CONFETTI_SETTINGS.CENTER_Z
+
+          +
+
+          (
+            Math.random() - 0.5
+          )
+
+          *
+
+          CONFETTI_SETTINGS.AREA_DEPTH;
+
+
+        /*
+          Falling speed.
+        */
+
+        piece.velocityY =
+
+          -(
+            CONFETTI_SETTINGS.FALL_SPEED_MIN
+
+            +
+
+            Math.random() *
+
+            (
+              CONFETTI_SETTINGS.FALL_SPEED_MAX
+
+              -
+
+              CONFETTI_SETTINGS.FALL_SPEED_MIN
+
+            )
+
+          );
+
+
+        /*
+          Random sideways movement.
+        */
+
+        piece.velocityX =
+
+          -0.012 +
+
+          Math.random() *
+          0.024;
+
+
+        piece.velocityZ =
+
+          -0.012 +
+
+          Math.random() *
+          0.024;
+
+
+        /*
+          Random rotations.
+        */
+
+        piece.rotationX =
+          Math.random() *
+          Math.PI;
+
+
+        piece.rotationY =
+          Math.random() *
+          Math.PI;
+
+
+        piece.rotationZ =
+          Math.random() *
+          Math.PI;
+
+      }
+
+
+      confettiMesh.visible =
+        true;
+
+
+      confettiActive =
+        true;
+
+
+      confettiEndTime =
+
+        performance.now()
+
+        +
+
+        CONFETTI_SETTINGS.DURATION;
+
+    }
+
+
+    // =========================================================
+    // UPDATE CONFETTI
+    // =========================================================
+
+
+    function updateConfetti() {
+
+
+      if (
+
+        !confettiMesh ||
+
+        !confettiActive
+
+      ) {
+
+        return;
+
+      }
+
+
+      /*
+        Stop after the configured duration.
+      */
+
+      if (
+
+        performance.now() >
+        confettiEndTime
+
+      ) {
+
+
+        confettiActive =
+          false;
+
+
+        confettiMesh.visible =
+          false;
+
+
+        return;
+
+      }
+
+
+      const dummy =
+        confettiMesh.userData.dummy;
+
+
+      for (
+
+        let i = 0;
+
+        i <
+        confettiPieces.length;
+
+        i++
+
+      ) {
+
+
+        const piece =
+          confettiPieces[i];
+
+
+        /*
+          Gravity.
+        */
+
+        piece.velocityY -=
+          0.00045;
+
+
+        /*
+          Position.
+        */
+
+        piece.x +=
+          piece.velocityX;
+
+
+        piece.y +=
+          piece.velocityY;
+
+
+        piece.z +=
+          piece.velocityZ;
+
+
+        /*
+          Slight natural movement.
+        */
+
+        piece.velocityX +=
+
+          Math.sin(
+
+            performance.now() *
+            0.0015 +
+
+            i
+
+          )
+
+          *
+
+          0.000015;
+
+
+        piece.velocityZ +=
+
+          Math.cos(
+
+            performance.now() *
+            0.0015 +
+
+            i
+
+          )
+
+          *
+
+          0.000015;
+
+
+        /*
+          Rotation.
+        */
+
+        piece.rotationX +=
+          piece.rotationSpeedX;
+
+
+        piece.rotationY +=
+          piece.rotationSpeedY;
+
+
+        piece.rotationZ +=
+          piece.rotationSpeedZ;
+
+
+        /*
+          Update transform.
+        */
+
+        dummy.position.set(
+
+          piece.x,
+
+          piece.y,
+
+          piece.z
+
+        );
+
+
+        dummy.rotation.set(
+
+          piece.rotationX,
+
+          piece.rotationY,
+
+          piece.rotationZ
+
+        );
+
+
+        /*
+          Tiny variation in size.
+        */
+
+        const scale =
+
+          0.75 +
+
+          (
+            i % 5
+          ) *
+
+          0.08;
+
+
+        dummy.scale.set(
+
+          scale,
+
+          scale,
+
+          scale
+
+        );
+
+
+        dummy.updateMatrix();
+
+
+        confettiMesh.setMatrixAt(
+
+          i,
+
+          dummy.matrix
+
+        );
+
+      }
+
+
+      confettiMesh
+        .instanceMatrix
+        .needsUpdate = true;
+
+    }
+
+
+    // =========================================================
+    // RESIZE
+    // =========================================================
+
+
+    window.addEventListener(
+
+      "resize",
+
+      () => {
+
+
+        camera.aspect =
+
+          window.innerWidth /
+          window.innerHeight;
+
+
+        camera.updateProjectionMatrix();
+
+
+        renderer.setSize(
+
+          window.innerWidth,
+
+          window.innerHeight
+
+        );
+
+      }
+
+    );
+
+
+    // =========================================================
+    // ANIMATION
+    // =========================================================
+
+
+    function animate() {
+
+
+      requestAnimationFrame(
+        animate
+      );
+
+
+      /*
+        OrbitControls controls the camera.
+
+        We DO NOT reset camera.position here.
+      */
+
+      controls.update();
+
+
+      /*
+        Update 3D confetti.
+      */
+
+      updateConfetti();
+
+
+      renderer.render(
+
+        scene,
+
+        camera
+
+      );
+
+    }
+
+
+    animate();
+
+
+  </script></body></html>

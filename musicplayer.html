@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel='stylesheet' href='https://cdn-uicons.flaticon.com/4.0.0/uicons-solid-straight/css/uicons-solid-straight.css'>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Lexend:wght@100..900&display=swap" rel="stylesheet">
+    <title>Document</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            margin: 0;
+            padding: 10px;
+            background: url("album art.jpg");
+            background-size: cover;
+            backdrop-filter: blur(40px) brightness(0.3) saturate(1.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Doto', 'Lexend', sans-serif;
+        }
+        #stars {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .player {
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            padding: 36px;
+            height: 100dvh;
+            width: 100dvh;
+            align-items: center;
+            justify-content: space-around;
+            background: ;
+        }
+        .album {
+            background: ;
+            height: auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .album_art
+        {
+            width: 400px;
+            height: 400px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0px 0px 50px 5px rgba(0, 0, 0, 0.5);
+            z-index: 6;
+            margin: 30px;
+        }
+        .album_art:hover
+        {
+            transform: scale(.95);
+            transition: 0.3s ease-in-out;
+        }
+        .song-info
+        {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            align-items: center;
+        }
+        .song-info h2
+        {
+            color: #ECF4FFFF;
+            font-family: 'Lexend', sans-serif;
+            font-size: 24px;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+        .song-info p
+        {
+            color: #ECF4FFFF;
+            font-family: 'Doto', sans-serif;
+            font-size: 16px;
+            font-weight: 400;
+            opacity: 0.5;
+        }
+        .song-info h2,
+        .song-info p
+        {
+            cursor: default;
+            transform: scale(1);
+            transition:
+                opacity 0.12s ease-out,
+                transform 0.12s ease-out,
+                text-shadow 0.12s ease-out;
+            will-change: transform, opacity, text-shadow;
+        }
+
+
+.controls {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin: 50px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    backdrop-filter: blur(100px) saturate(200);
+}
+
+.progress-bar {
+    flex: 3;
+    align-items: center;
+    justify-content: center;
+}
+
+.controls button {
+    cursor: pointer;
+    padding: 4px 12px;
+}
+
+.controls button i {
+    font-size: 12px;
+    transition: all 0.2s ease;
+    padding: 0;
+    margin: 0;
+}
+
+
+.progress {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    cursor: pointer;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    outline: none;
+    box-shadow: 0 0 8px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.5s ease;
+    backdrop-filter: contrast(1.2);
+    align-items: center;
+    justify-content: center;
+}
+.progress-bar:hover .progress
+{
+    margin: 0;
+    background: rgba(255, 255, 255, 0.1);
+    height: 12px;
+}
+.progress::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    box-shadow:
+        0 0 20px rgba(255,255,255,0.8);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    
+}
+.progress-bar:hover .progress::-webkit-slider-thumb
+{
+    width: 8px;
+    height: 8px;
+}
+
+
+.progress::-webkit-slider-runnable-track {
+    background-color: ;
+}
+.controls button {
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    border: none;
+    color: rgba(0, 0, 0, 0.5);
+    transition: .1s ease-in-out;
+}
+.controls button:hover
+{
+    background: rgba(255, 255, 255, 0.8);
+    box-shadow:
+        0 0 20px rgba(255,255,255,0.8);
+}
+
+
+    </style>
+</head>
+<body>
+    <canvas id="stars"></canvas>
+    <div class="player">
+        <div class="album">
+            <img src="album art.jpg" alt="" class="album_art">
+            <div class="song-info">
+                <h2 class="song-title">Rewrite The Stars (Piano)</h2>
+                <p class="artist-name">TitanTayeb</p>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="progress-bar">
+                <input type="range" min="0" max="100" value="0" class="progress">
+            </div>
+            <button id="play">
+                <i class="fi fi-ss-play"></i>
+            </button>
+            <button id="mute">
+                <i class="fi fi-ss-volume"></i>
+            </button>
+        </div>
+        <audio id="audio" src="Rewrite The Star.m4a"></audio>
+
+    </div>
+
+
+
+<script>
+const canvas = document.getElementById("stars");
+const ctx = canvas.getContext("2d");
+
+let stars = [];
+
+let mouseX = -1000;
+let mouseY = -1000;
+
+const STAR_COUNT = 1024;
+const POINTER_RADIUS = 180;
+
+function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+
+    canvas.style.width = window.innerWidth + "px";
+    canvas.style.height = window.innerHeight + "px";
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function createStar(initial = false) {
+    return {
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+
+        size: Math.random() * 0.8 + 0.3,
+
+        life: initial
+            ? Math.random() * 500
+            : 0,
+
+        maxLife: Math.random() * 500 + 350,
+
+        fadeIn: Math.random() * 100 + 70,
+        fadeOut: Math.random() * 120 + 80,
+
+        delay: initial
+            ? 0
+            : Math.random() * 100,
+
+        rotation: Math.random() * Math.PI,
+
+        brightness: Math.random() * 0.32 + 0.18,
+
+        twinkleSpeed:
+            Math.random() * 0.006 + 0.002,
+
+        twinkleOffset:
+            Math.random() * Math.PI * 2
+    };
+}
+
+function resetStar(star) {
+    Object.assign(star, createStar());
+}
+
+for (let i = 0; i < STAR_COUNT; i++) {
+    stars.push(createStar(true));
+}
+
+window.addEventListener("resize", resize);
+
+window.addEventListener("pointermove", e => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+});
+
+window.addEventListener("pointerleave", () => {
+    mouseX = -1000;
+    mouseY = -1000;
+});
+
+function drawStar(
+    x,
+    y,
+    size,
+    alpha,
+    rotation,
+    glow
+) {
+    ctx.save();
+
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+
+    ctx.globalAlpha = alpha;
+
+    ctx.shadowBlur = glow;
+    ctx.shadowColor =
+        "rgba(255,255,255,0.8)";
+
+    ctx.fillStyle = "#ffffff";
+
+    ctx.beginPath();
+
+    ctx.moveTo(0, -size * 2.2);
+
+    ctx.quadraticCurveTo(
+        size * 0.12,
+        -size * 0.12,
+        size * 2.2,
+        0
+    );
+
+    ctx.quadraticCurveTo(
+        size * 0.12,
+        size * 0.12,
+        0,
+        size * 2.2
+    );
+
+    ctx.quadraticCurveTo(
+        -size * 0.12,
+        size * 0.12,
+        -size * 2.2,
+        0
+    );
+
+    ctx.quadraticCurveTo(
+        -size * 0.12,
+        -size * 0.12,
+        0,
+        -size * 2.2
+    );
+
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function animate(time) {
+
+    ctx.clearRect(
+        0,
+        0,
+        window.innerWidth,
+        window.innerHeight
+    );
+
+    for (const star of stars) {
+
+        if (star.delay > 0) {
+            star.delay--;
+            continue;
+        }
+
+        star.life++;
+
+        if (star.life >= star.maxLife) {
+            resetStar(star);
+            continue;
+        }
+
+        let lifeAlpha = 1;
+
+        if (star.life < star.fadeIn) {
+            lifeAlpha =
+                star.life / star.fadeIn;
+        }
+
+        const remaining =
+            star.maxLife - star.life;
+
+        if (remaining < star.fadeOut) {
+            lifeAlpha =
+                remaining / star.fadeOut;
+        }
+
+        const slowTwinkle =
+            0.65 +
+            Math.sin(
+                time * star.twinkleSpeed +
+                star.twinkleOffset
+            ) * 0.35;
+
+        let alpha =
+            lifeAlpha *
+            slowTwinkle *
+            star.brightness;
+
+        const dx = star.x - mouseX;
+        const dy = star.y - mouseY;
+
+        const distance =
+            Math.sqrt(dx * dx + dy * dy);
+
+        let influence = 0;
+
+        if (distance < POINTER_RADIUS) {
+
+            influence =
+                1 -
+                distance / POINTER_RADIUS;
+
+            influence =
+                influence * influence;
+        }
+
+        alpha = Math.min(
+            alpha + influence * 0.8,
+            1
+        );
+
+        const size =
+            star.size +
+            influence * 1.2;
+
+        const glow =
+            influence * 12;
+
+        drawStar(
+            star.x,
+            star.y,
+            size,
+            alpha,
+            star.rotation,
+            glow
+        );
+    }
+
+    requestAnimationFrame(animate);
+}
+
+resize();
+requestAnimationFrame(animate);
+</script>
+
+
+<script>
+const textElements = document.querySelectorAll(
+    ".song-title, .artist-name"
+);
+
+textElements.forEach(element => {
+
+    const text = element.textContent;
+
+    element.textContent = "";
+
+    [...text].forEach(char => {
+
+        const span = document.createElement("span");
+
+        span.textContent =
+            char === " " ? "\u00A0" : char;
+
+        element.appendChild(span);
+    });
+});
+
+function updateTextGlow(mouseX, mouseY) {
+
+    textElements.forEach(element => {
+
+        const letters =
+            element.querySelectorAll("span");
+
+        letters.forEach(letter => {
+
+            const rect =
+                letter.getBoundingClientRect();
+
+            const centerX =
+                rect.left + rect.width / 2;
+
+            const centerY =
+                rect.top + rect.height / 2;
+
+            const dx =
+                mouseX - centerX;
+
+            const dy =
+                mouseY - centerY;
+
+            const distance =
+                Math.sqrt(dx * dx + dy * dy);
+
+            const radius = 80;
+
+            let influence =
+                1 - distance / radius;
+
+            influence =
+                Math.max(0, influence);
+
+            influence =
+                influence * influence;
+
+            const opacity =
+                0.7 +
+                influence * 0.3;
+
+            const scale =
+                1 +
+                influence * 0.08;
+
+            const blur =
+                influence * 12;
+
+            const glowAlpha =
+                influence * 0.9;
+
+            letter.style.opacity = opacity;
+
+            letter.style.transform =
+                `scale(${scale})`;
+
+            letter.style.textShadow =
+                `0 0 ${blur}px rgba(255,255,255,${glowAlpha})`;
+        });
+    });
+}
+
+window.addEventListener("pointermove", e => {
+    updateTextGlow(e.clientX, e.clientY);
+});
+
+window.addEventListener("pointerleave", () => {
+
+    textElements.forEach(element => {
+
+        element
+            .querySelectorAll("span")
+            .forEach(letter => {
+
+                letter.style.opacity = "0.7";
+                letter.style.transform = "scale(1)";
+                letter.style.textShadow =
+                    "0 0 0 rgba(255,255,255,0)";
+            });
+    });
+});
+</script>
+
+
+<script>
+const audio = document.getElementById("audio");
+const playButton = document.getElementById("play");
+const muteButton = document.getElementById("mute");
+const progress = document.querySelector(".progress");
+
+
+/* PLAY / PAUSE */
+
+playButton.addEventListener("click", () => {
+
+    if (audio.paused) {
+        audio.play();
+        playButton.textContent = "Pause";
+    } else {
+        audio.pause();
+        playButton.textContent = "Play";
+    }
+
+});
+
+
+/* MUTE */
+
+muteButton.addEventListener("click", () => {
+
+    audio.muted = !audio.muted;
+
+    muteButton.textContent =
+        audio.muted ? "Unmute" : "Mute";
+
+});
+
+
+/* UPDATE PROGRESS */
+
+audio.addEventListener("timeupdate", () => {
+
+    if (!audio.duration) return;
+
+    progress.value =
+        (audio.currentTime / audio.duration) * 100;
+
+});
+
+
+/* SEEK */
+
+progress.addEventListener("input", () => {
+
+    if (!audio.duration) return;
+
+    audio.currentTime =
+        (progress.value / 100) * audio.duration;
+
+});
+
+
+/* SONG ENDED */
+
+audio.addEventListener("ended", () => {
+
+    playButton.textContent = "Play";
+    progress.value = 100;
+
+});
+
+
+/* RESET WHEN LOADED */
+
+audio.addEventListener("loadedmetadata", () => {
+    progress.value = 0;
+});
+</script>
+
+
+</body>
+</html>
